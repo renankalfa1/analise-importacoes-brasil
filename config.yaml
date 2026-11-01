@@ -1,0 +1,95 @@
+# =============================================================================
+# analise-importacoes-brasil | configuração do projeto
+# =============================================================================
+# Credenciais AWS ficam em ~/.aws/credentials (perfil abaixo).
+# =============================================================================
+
+projeto:
+  nome: analise-importacoes-brasil
+  repositorio: https://github.com/renankalfa1/analise-importacoes-brasil
+  fonte: Receita Federal do Brasil - Estatísticas de Declarações de Importação
+  url_fonte: https://dados.gov.br/dados/conjuntos-dados/estatisticas-de-declaracoes-de-importacao
+
+# -----------------------------------------------------------------------------
+# AWS
+# -----------------------------------------------------------------------------
+aws:
+  profile: estatisticas_di             # perfil em ~/.aws/credentials
+  regiao: sa-east-1
+  bucket: importacoes-brasil-bucket
+
+# Prefixos de cada camada dentro do bucket (sempre terminam com "/")
+s3:
+  raw: raw/estatisticas_di/
+  bronze: bronze/estatisticas_di/
+  silver: silver/estatisticas_di/
+  gold: gold/estatisticas_di/
+  # Particionamento estilo Hive: <prefixo>ano_mes=AAAA-MM/<arquivo>
+  particao: ano_mes
+
+# -----------------------------------------------------------------------------
+# Caminhos locais (fora do repositório)
+# -----------------------------------------------------------------------------
+caminhos:
+  # Pasta onde você salva os CSVs baixados manualmente. NÃO colocar dentro do repo.
+  # Aspas simples: o YAML não interpreta as barras invertidas do Windows.
+  download_local: 'K:\Download\dados_importacoes_temp'
+  # Tabelas de referência versionadas no repositório
+  dados_ref:
+    eventos_regulatorios: dados_ref/eventos_regulatorios.csv
+    correlacao_ncm: dados_ref/correlacao_ncm.csv
+    dim_pais: dados_ref/dim_pais.csv
+
+# -----------------------------------------------------------------------------
+# Arquivos de origem (CSV da Receita Federal)
+# -----------------------------------------------------------------------------
+origem:
+  # Nome esperado: estatisticas_di_AAAA_MM.csv
+  padrao_nome_arquivo: '^estatisticas_di_(\d{4})_(\d{2})\.csv$'
+  separador: '@'
+  encoding: utf-8              # confirmar nos arquivos mais antigos (2021-2022)
+  periodo_inicial: '2021-01'   # série disponível desde 2021
+
+# -----------------------------------------------------------------------------
+# Esquema
+# -----------------------------------------------------------------------------
+esquema:
+  # Os nomes das colunas no CSV vêm em minúsculas, embora o PDF as liste em maiúsculas.
+  # Todos os scripts devem normalizar para minúsculas.
+  chave_unica: [ano_mes, ncm, nves, pais_origem]
+
+  colunas_texto:               # nunca ler como número
+    - ncm                      # aplicar zfill(8): zeros à esquerda se perdem
+    - nves
+    - nves_nm
+    - pais_origem
+    - ume
+  ncm_tamanho: 8
+
+  colunas_obrigatorias:
+    - ncm
+    - nves
+    - nves_nm
+    - pais_origem
+    - ume
+    - vmle_soma_dolar_truncado
+    - peso_liq_soma_truncado
+    - qtd_ume_soma_truncado
+    - fob_kg_media_dolar_truncado
+    - fob_kg_mediana_dolar_truncado
+    - fob_ume_media_dolar_truncado
+    - fob_ume_mediana_dolar_truncado
+
+# -----------------------------------------------------------------------------
+# Saída
+# -----------------------------------------------------------------------------
+parquet:
+  compressao: snappy
+  engine: pyarrow
+
+# -----------------------------------------------------------------------------
+# Log
+# -----------------------------------------------------------------------------
+log:
+  nivel: INFO
+  formato: '%(asctime)s | %(levelname)s | %(name)s | %(message)s'

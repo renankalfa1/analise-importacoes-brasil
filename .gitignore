@@ -1,0 +1,11 @@
+# dados brutos locais, caso alguém coloque na pasta do projeto por engano
+*.csv
+!dados_ref/*.csv   # exceto os de referência, que devem ser versionados
+
+# dados processados locais
+*.parquet
+
+# credenciais e ambiente
+.env
+*.env
+config_local.yaml
