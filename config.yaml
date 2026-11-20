@@ -37,8 +37,8 @@ caminhos:
   # Tabelas de referência versionadas no repositório
   dados_ref:
     eventos_regulatorios: dados_ref/eventos_regulatorios.csv
-    correlacao_ncm: dados_ref/correlacao_ncm.csv
-    dim_pais: dados_ref/dim_pais.csv
+    dim_ncm: data_ref/dim_ncm.csv
+    dim_pais: data_ref/dim_pais.csv
 
 # -----------------------------------------------------------------------------
 # Arquivos de origem (CSV da Receita Federal)
@@ -79,6 +79,12 @@ esquema:
     - fob_kg_mediana_dolar_truncado
     - fob_ume_media_dolar_truncado
     - fob_ume_mediana_dolar_truncado
+
+# -----------------------------------------------------------------------------
+# Configuração da camada gold
+# -----------------------------------------------------------------------------
+gold:
+  periodo_inicial: '2022-04'   # primeiro mês com versões de NCM na planilha histórica
 
 # -----------------------------------------------------------------------------
 # Saída
