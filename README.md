@@ -58,7 +58,7 @@ Em linhas com distribuição de preços muito heterogênea, a Receita Federal po
 **Sem dimensão interna**
 Não há UF de destino, modal de transporte, porto de entrada, CNPJ do importador nem contagem de operações por linha.
 
-O documento completo de limitações, pontos fortes e análises viáveis está em [`docs/Fontes de Dados — Limitações, Pontos Fortes e Análises Viáveis.docx`](docs/).
+O documento completo de limitações, pontos fortes e análises viáveis está em [`docs/documentacao_fontes_dados.docx`](docs/).
 
 ---
 
