@@ -19,6 +19,7 @@ Projeto de análise das **Estatísticas de Declarações de Importação** publi
 - [Qualidade de dados](#qualidade-de-dados)
 - [Decisões de projeto](#decisões-de-projeto)
 - [Aviso sobre cobertura dos dados](#aviso-sobre-cobertura-dos-dados)
+- [Links de referência](#links-de-referência)
 
 ---
 
@@ -29,9 +30,10 @@ Projeto de análise das **Estatísticas de Declarações de Importação** publi
 | Ingestão raw (`upload_raw.py`) | ✅ Concluída |
 | Conversão para bronze (`raw_to_bronze.py`) | ✅ Concluída |
 | Transformação para silver (`bronze_to_silver.py`) | ✅ Concluída, com validações de schema e de negócio |
-| Dimensão de NCM com histórico de versões (`data_ref/dim_ncm.csv`) | ✅ Concluída |
-| Dimensão de países (`data_ref/dim_pais.csv`) | ✅ Concluída, com 122 países |
-| Camada gold, modelo estrela (`silver_to_gold.py`) | ✅ Concluída, em fase de validação com os dados completos |
+| Dimensão de NCM com histórico de versões (`02_dim_ncm.ipynb` → `data_ref/dim_ncm.csv`) | ✅ Concluída |
+| Dimensão de países (`03_dim_pais.ipynb` → `data_ref/dim_pais.csv`) | ✅ Concluída, com 122 países |
+| Camada gold, modelo estrela (`silver_to_gold.py`) | ✅ Concluída e executada para a série completa (a partir de 2022-04) |
+| Validação de qualidade da gold (`04_qualidade_eda_gold.ipynb`) | ✅ Executada |
 | Notebooks de qualidade e EDA (`notebooks/eda/`) | ✅ Quatro notebooks |
 | Notebooks de insights (`notebooks/insights/`) | 🚧 Em construção |
 | Tabela de eventos regulatórios (`data_ref/eventos_regulatorios.csv`) | 🚧 Pendente |
@@ -130,6 +132,9 @@ S3: silver/estatisticas_di/
     └── ano_mes=AAAA-MM/
         └── estatisticas_di_AAAA_MM.parquet    ← tipada, normalizada, validada + derivadas
         │
+        │  notebooks/eda/02_dim_ncm.ipynb   → data_ref/dim_ncm.csv   (tabelas da RFB)
+        │  notebooks/eda/03_dim_pais.ipynb  → data_ref/dim_pais.csv  (países da silver)
+        │
         │  src/transformacao/silver_to_gold.py     + data_ref/dim_ncm.csv
         │                                          + data_ref/dim_pais.csv
         ▼
@@ -139,7 +144,7 @@ S3: gold/estatisticas_di/
     ├── dim_pais/
     └── dim_tempo/
         │
-        ├── Notebooks Python   ← qualidade (04) e exploração, insights
+        ├── Notebooks Python   ← qualidade da gold (04), exploração e insights
         └── Power BI           ← dashboard (em desenvolvimento)
 ```
 
@@ -321,7 +326,20 @@ Aplica as regras de tratamento da camada silver:
 
 > **Quartis vazios:** a RFB pode suprimir Q1 e Q3 em linhas com distribuição de preços muito heterogênea. Esses valores chegam como `NaN` na silver — a linha permanece válida para as demais colunas.
 
-### Etapa 5 — Modelo estrela na gold
+### Etapa 5 — Dimensões de referência (notebooks)
+
+As dimensões não são geradas por script de linha de comando: são construídas em notebooks, porque exigem inspeção manual (descrições da RFB, códigos ISO, blocos econômicos). Os CSVs resultantes ficam em `data_ref/` e são versionados no repositório. Execute os notebooks **antes** da gold.
+
+| Notebook | Entrada | Saída | Quando reexecutar |
+|---|---|---|---|
+| `notebooks/eda/02_dim_ncm.ipynb` | Três planilhas Excel da RFB (histórica e vigentes) em `data_ref/` | `data_ref/dim_ncm.csv` | Quando a RFB publicar nova tabela NCM |
+| `notebooks/eda/03_dim_pais.ipynb` | Países distintos da silver no S3 + dicionário manual `DICT_PAISES` | `data_ref/dim_pais.csv` | Quando surgir país novo na silver |
+
+O `03_dim_pais.ipynb` lê todos os países da silver e **interrompe** se algum não estiver no `DICT_PAISES`; nesse caso, adicione o país ao dicionário e rode novamente. O `02_dim_ncm.ipynb` não depende da silver, mas precisa das planilhas baixadas da página da RFB (ver [Fonte da classificação NCM](#fonte-da-classificação-ncm)).
+
+> Como o pipeline é executado uma vez, sem previsão de novas cargas, as dimensões só precisam ser reexecutadas se as planilhas ou a lista de países mudarem.
+
+### Etapa 6 — Modelo estrela na gold
 
 ```bash
 python src/transformacao/silver_to_gold.py
@@ -337,6 +355,10 @@ Monta o modelo estrela a partir da silver, a partir de `gold.periodo_inicial` (a
 
 As dimensões são regravadas a cada execução, porque são pequenas. Mudar uma dimensão não exige reprocessar a fato.
 
+### Etapa 7 — Validação da gold (notebook)
+
+Abra `notebooks/eda/04_qualidade_eda_gold.ipynb` e execute todas as células. O notebook gera o relatório de qualidade (✅/⚠️/❌), reconcilia o `vmle` de cada mês com a silver e produz os gráficos de exploração inicial.
+
 ### Fluxo completo
 
 ```bash
@@ -344,10 +366,17 @@ As dimensões são regravadas a cada execução, porque são pequenas. Mudar uma
 python src/ingestao/upload_raw.py
 python src/ingestao/raw_to_bronze.py
 python src/transformacao/bronze_to_silver.py
+
+# Dimensões: executar os notebooks (Jupyter) e conferir os CSVs em data_ref/
+#   notebooks/eda/02_dim_ncm.ipynb
+#   notebooks/eda/03_dim_pais.ipynb
+
 python src/transformacao/silver_to_gold.py
+
+# Validação: executar notebooks/eda/04_qualidade_eda_gold.ipynb
 ```
 
-**Opções disponíveis em todos os scripts:**
+**Opções disponíveis nos scripts (os notebooks não usam):**
 
 ```
 --config         caminho alternativo para o config.yaml  (padrão: config.yaml)
@@ -364,9 +393,9 @@ As análises respeitam as limitações da fonte. Resultados devem ser lidos como
 
 Os notebooks de insights ficarão em `notebooks/insights/`:
 
-- `01_padroes_importacao` (em desemvolvimento) — composição do valor importado, concentração geográfica por produto, comparação de preço por origem e custo logístico relativo.
-- `02_analise_temporal` (em desemvolvimento) — evolução do preço médio ponderado por capítulo, participação de países ao longo do tempo, sazonalidade e persistência de origens.
-- `03_impacto_regulatorio` (em desemvolvimento) — diferenças-em-diferenças e antecipação de compras. Requer `data_ref/eventos_regulatorios.csv`, ainda não criado.
+- `01_padroes_importacao` (em construção) — composição do valor importado, concentração geográfica por produto, comparação de preço por origem e custo logístico relativo.
+- `02_analise_temporal` (em construção) — evolução do preço médio ponderado por capítulo, participação de países ao longo do tempo, sazonalidade e persistência de origens.
+- `03_impacto_regulatorio` (em construção) — diferenças-em-diferenças e antecipação de compras. Requer `data_ref/eventos_regulatorios.csv`, ainda não criado.
 
 > Análises inviáveis com esta fonte: total importado pelo Brasil, market share de importadores, impacto de antidumping em mercados concentrados, análise por UF ou modal de transporte.
 
@@ -445,3 +474,19 @@ A silver mantém o nome original em uppercase, para que o join com `dim_pais` se
 ## Aviso sobre cobertura dos dados
 
 > Os valores neste projeto **não representam o total nacional de importações do Brasil**. A fonte cobre apenas combinações com ao menos 4 importadores distintos por mês, o que corresponde a aproximadamente 10–15% do valor total importado. A ausência de um produto ou país nos dados não implica ausência de importação.
+
+---
+
+## Links de referência
+
+| Recurso | Link |
+|---|---|
+| Conjunto de dados (dados.gov.br) | [Estatísticas de Declarações de Importação](https://dados.gov.br/dados/conjuntos-dados/estatisticas-de-declaracoes-de-importacao) |
+| Tabela oficial da NCM (Receita Federal) | [Classificação Fiscal de Mercadorias — NCM](https://www.gov.br/receitafederal/pt-br/assuntos/aduana-e-comercio-exterior/classificacao-fiscal-de-mercadorias/ncm) |
+| Dicionário de dados | [`docs/dicionario_dados.md`](docs/dicionario_dados.md) |
+| Metadados originais da RFB | [`docs/estatisticas_di_metadados.pdf`](docs/estatisticas_di_metadados.pdf) |
+| Limitações, pontos fortes e análises viáveis | [`docs/documentacao_fontes_dados.docx`](docs/documentacao_fontes_dados.docx) |
+| Diagrama do pipeline | [`diagrama_pipeline_v2.png`](docs/images/diagrama_pipeline_v2.png) |
+| Repositório | [renankalfa1/analise-importacoes-brasil](https://github.com/renankalfa1/analise-importacoes-brasil) |
+
+*Última atualização: 21/11/2026.*
