@@ -9,3 +9,7 @@
 .env
 *.env
 config_local.yaml
+
+__pycache__/
+*.pyc
+.pytest_cache/

@@ -81,6 +81,10 @@ COLUNAS_NUMERICAS = [
 
 PADRAO_ANO_MES = re.compile(r"^\d{4}-\d{2}$")
 
+# Colunas numéricas que a RFB não publicou em alguns meses (2022-05 a 2022-07
+# não trazem qtd_ume_soma_truncado). Em vez de rejeitar o mês, a coluna é criada
+# com NaN, o que mantém o mesmo schema em todas as partições da silver.
+COLUNAS_OPCIONAIS = ["qtd_ume_soma_truncado"]
 
 # ---------------------------------------------------------------------------
 # Configuração e log
@@ -359,7 +363,13 @@ def transformar(df: pd.DataFrame, ano_mes: str, cfg: dict) -> pd.DataFrame:
     # ------------------------------------------------------------------
     colunas_num_presentes = [c for c in COLUNAS_NUMERICAS if c in df.columns]
     for col in colunas_num_presentes:
-        df[col] = pd.to_numeric(df[col], errors="coerce")
+        df[col] = pd.to_numeric(df[col], errors="coerce").astype("float64")
+
+    # Colunas opcionais ausentes na fonte: cria com NaN (float64) e registra
+    for col in COLUNAS_OPCIONAIS:
+        if col not in df.columns:
+            df[col] = float("nan")
+            log.warning("  Coluna '%s' ausente na fonte em %s → criada com NaN", col, ano_mes)
 
     nulos_pos_conversao = df[colunas_num_presentes].isna().sum()
     nulos_relevantes = nulos_pos_conversao[nulos_pos_conversao > 0]

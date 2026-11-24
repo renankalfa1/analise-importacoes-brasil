@@ -17,6 +17,7 @@ Projeto de análise das **Estatísticas de Declarações de Importação** publi
 - [Pipeline de dados](#pipeline-de-dados)
 - [Análises previstas](#análises-previstas)
 - [Qualidade de dados](#qualidade-de-dados)
+- [Testes](#testes)
 - [Decisões de projeto](#decisões-de-projeto)
 - [Aviso sobre cobertura dos dados](#aviso-sobre-cobertura-dos-dados)
 - [Links de referência](#links-de-referência)
@@ -38,7 +39,7 @@ Projeto de análise das **Estatísticas de Declarações de Importação** publi
 | Notebooks de insights (`notebooks/insights/`) | 🚧 Em construção |
 | Tabela de eventos regulatórios (`data_ref/eventos_regulatorios.csv`) | 🚧 Pendente |
 | Dashboard no Power BI | 🚧 Em desenvolvimento |
-| Testes automatizados (`tests/`) | 🚧 Em construção |
+| Testes automatizados (`tests/`) | ✅ Cobrem ingestão, silver, gold e `data_ref/` |
 
 ---
 
@@ -206,9 +207,15 @@ analise-importacoes-brasil/
 │   └── transformacao/
 │       ├── bronze_to_silver.py         # tipagem, normalização, validações, derivadas
 │       └── silver_to_gold.py           # modelo estrela com versões de NCM vigentes
-├── tests/                              # testes automatizados (em construção)
+├── tests/                              # testes automatizados (pytest)
+│   ├── conftest.py                     # fixtures: silver, dim_ncm e dim_pais sintéticas
+│   ├── test_upload_raw.py
+│   ├── test_bronze_to_silver.py
+│   ├── test_silver_to_gold.py          # inclui a data de corte da gold
+│   └── test_data_ref.py                # valida os CSVs versionados em data_ref/
 ├── .gitattributes
 ├── .gitignore
+├── pytest.ini
 ├── config.yaml                         # configurações do projeto (sem segredos)
 ├── diagrama_pipeline_v2.png            # diagrama do pipeline
 ├── LICENSE
@@ -232,7 +239,7 @@ analise-importacoes-brasil/
 pip install boto3 pyyaml pandas pyarrow matplotlib numpy
 ```
 
-Os notebooks de exploração também usam `jupyter`.
+Os notebooks de exploração também usam `jupyter`, e os testes usam `pytest` (`pip install pytest`).
 
 ---
 
@@ -270,7 +277,7 @@ O arquivo `config.yaml` na raiz do repositório centraliza todas as configuraç�
 ```yaml
 caminhos:
   download_local: 'K:\Download\dados_importacoes_temp'   # pasta local dos CSVs
-  data_ref:
+  dados_ref:
     dim_ncm: data_ref/dim_ncm.csv
     dim_pais: data_ref/dim_pais.csv
 
@@ -393,9 +400,9 @@ As análises respeitam as limitações da fonte. Resultados devem ser lidos como
 
 Os notebooks de insights ficarão em `notebooks/insights/`:
 
-- `01_padroes_importacao` (em construção) — composição do valor importado, concentração geográfica por produto, comparação de preço por origem e custo logístico relativo.
-- `02_analise_temporal` (em construção) — evolução do preço médio ponderado por capítulo, participação de países ao longo do tempo, sazonalidade e persistência de origens.
-- `03_impacto_regulatorio` (em construção) — diferenças-em-diferenças e antecipação de compras. Requer `data_ref/eventos_regulatorios.csv`, ainda não criado.
+- `01_padroes_importacao` — composição do valor importado, concentração geográfica por produto, comparação de preço por origem e custo logístico relativo.
+- `02_analise_temporal` — evolução do preço médio ponderado por capítulo, participação de países ao longo do tempo, sazonalidade e persistência de origens.
+- `03_impacto_regulatorio` — diferenças-em-diferenças e antecipação de compras. Requer `data_ref/eventos_regulatorios.csv`, ainda não criado.
 
 > Análises inviáveis com esta fonte: total importado pelo Brasil, market share de importadores, impacto de antidumping em mercados concentrados, análise por UF ou modal de transporte.
 
@@ -443,6 +450,24 @@ Relatórios usam ✅ para aprovado, ⚠️ para aviso e ❌ para erro.
 
 ---
 
+## Testes
+
+```bash
+pip install pytest
+pytest
+```
+
+Os testes não acessam a AWS: usam DataFrames sintéticos e um S3 simulado em memória, que falha se algum script tentar uma operação fora das esperadas (em especial `delete`).
+
+| Arquivo | O que verifica |
+|---|---|
+| `test_silver_to_gold.py` | Versão de NCM vigente no último dia do mês, validação da `dim_ncm`, schema da silver, grão e totais da fato, **data de corte da gold (`gold.periodo_inicial`)** |
+| `test_bronze_to_silver.py` | `zfill(8)`, tipagem `float64`, quartis suprimidos, derivadas, validações de schema e de negócio, contrato com a gold |
+| `test_upload_raw.py` | Padrão de nome do arquivo, chave S3, o que falta enviar, raw nunca sobrescrito nem apagado |
+| `test_data_ref.py` | Chaves únicas, ISO, blocos, vigências sem sobreposição e cobertura desde 2022-04 nos CSVs de `data_ref/` |
+
+---
+
 ## Decisões de projeto
 
 **Por que Python local em vez de AWS Glue ou Lambda?**
@@ -486,7 +511,7 @@ A silver mantém o nome original em uppercase, para que o join com `dim_pais` se
 | Dicionário de dados | [`docs/dicionario_dados.md`](docs/dicionario_dados.md) |
 | Metadados originais da RFB | [`docs/estatisticas_di_metadados.pdf`](docs/estatisticas_di_metadados.pdf) |
 | Limitações, pontos fortes e análises viáveis | [`docs/documentacao_fontes_dados.docx`](docs/documentacao_fontes_dados.docx) |
-| Diagrama do pipeline | [`diagrama_pipeline_v2.png`](docs/images/diagrama_pipeline_v2.png) |
+| Diagrama do pipeline | [`diagrama_pipeline_v2.png`](diagrama_pipeline_v2.png) |
 | Repositório | [renankalfa1/analise-importacoes-brasil](https://github.com/renankalfa1/analise-importacoes-brasil) |
 
 *Última atualização: 21/11/2026.*
